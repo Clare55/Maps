@@ -28,17 +28,41 @@ Denmark_Map1 <- ggplot(data = country10)+
   geom_sf()
 print(Denmark_Map1)
 ```
+```{r}
+  Denmark_Map1 +
+  theme(axis.line = element_line(),
+       # axis.ticks = element_blank(),  # hides the Lat, Long tick lines
+       # axis.text.x = element_blank(), # hides the Longitude lines
+       # axis.text.y = element_blank(), # hides the Latitude lines
+       # axis.title = element_blank(),  # hides the X and Y titles
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth =.3),
+        panel.background = element_rect(fill = "white"))
+
+```
+
+
 ### Crop Map and Format
 
 ```{r}
 Denmark_Map2 <- Denmark_Map1 +
-  geom_sf(fill="oldlace") +
- # geom_sf(fill = "azuregray2", color = "azuregray3", linewidth = .2) +
+  geom_sf(fill="antiquewhite",
+          color="steelblue") +
   # Crop the map using the latitude and longitude coordinates above
   coord_sf(xlim = c(6.5, 14.2), 
            ylim = c(53.5, 55.8), 
            expand = TRUE) +
-  theme_classic()
+    theme(axis.line = element_line(),
+       # axis.ticks = element_blank(),  # hides the Lat, Long tick lines
+       # axis.text.x = element_blank(), # hides the Longitude lines
+       # axis.text.y = element_blank(), # hides the Latitude lines
+       # axis.title = element_blank(),  # hides the X and Y titles
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth =.3),
+        panel.background = element_rect(fill = "white"))
+
 print(Denmark_Map2)
 ```
 The map is a little too simplified for the scale of the map we need.
@@ -123,7 +147,7 @@ Denmark_Map4_Lines <- ggplot() +
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
-        panel.background = element_rect(fill = "azure1"))
+        panel.background = element_rect(fill = "white"))
 print(Denmark_Map4_Lines)
 
 ```
@@ -154,7 +178,7 @@ sea <- bb_rect_split[2]
 # Land appears as antique white because of the panel.background setting.
 Denmark_Map5 <- ggplot() +
   geom_sf(
-    data = bb_rect_split,
+    data = land,
     fill = "lightgreen",
     color = "steelblue",
     linewidth=.3
@@ -189,67 +213,6 @@ ggsave("Gifs/Denmark_Map5_%03d.png",
 ```
 
 
-
-
-
-```{r}
-# Maps rendered with coast_TJ$osm_lines miss many small islands and islets.
-# Maps rendered with coast_TJ$osm_polygons misses the main land.
-# Convert coast_TJ$osm_polygons to lines to capture all islands and islets.
-coast_TJ2 <- osm_poly2line (coast_TJ)
-
-# 2. Get overall rectangle for bbox
-bb_rect_TJ <- data.frame(
-  lat = c(lat_min_TJ, lat_max_TJ),
-  lon = c(lon_min_TJ, lon_max_TJ)) %>% 
-  st_as_sf(coords = c("lon", "lat"), crs = 4326) %>% 
-  st_bbox() %>% 
-  st_as_sfc()
-
-# 3. Split the overall rectangle for bbox via coastline (coast2$osm_lines)
-bb_rect_split_TJ <- bb_rect_TJ %>% 
-  st_split(coast_TJ2$osm_lines) %>% 
-  st_collection_extract("POLYGON")
-
-# 4. Extract the split rectangle parts
-sea_TJ  <- bb_rect_split_TJ[1]
-land_TJ <- bb_rect_split_TJ[2]
-
-### Create Plots 
-# Creates a plot with the sea in light blue, outlined in steelblue. 
-# Land appears as antique white because of the panel.background setting.
-Tjorn_colour_1 <- ggplot() +
-  geom_sf(
-    data = sea_TJ,
-    fill = "lightblue",
-    color = "steelblue"
-  ) + 
-  coord_sf(xlim = c(lon_min_TJ, lon_max_TJ), 
-           ylim = c(lat_min_TJ, lat_max_TJ),
-           expand = FALSE) +  
-  theme(axis.line = element_line(),
-        axis.ticks = element_blank(),  # hides the Lat, Long tick lines
-        axis.text.x = element_blank(), # hides the Longitude lines
-        axis.text.y = element_blank(), # hides the Latitde lines
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
-        panel.background = element_rect(fill = "antiquewhite"))
-print(Tjorn_colour_1)
-
-scale_factor = 10
-
-## Save as PNG file
-ggsave("Gifs/Tjorn_colour_1_%03d.png",
-       plot = last_plot(), 
-       device = "png",
-       scale = scale_factor,
-       units="mm", 
-       limitsize = FALSE,
-       dpi=300)
-
-
-```
 
 
 
@@ -296,9 +259,6 @@ print(Map2)
 
 *Note:* The coastline renders only as a line because the coastline is not a polygon. The fill setting is ignored.
 
-
-```{r}
-```
 
 
 ## Save as a GIF file

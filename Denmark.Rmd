@@ -1,15 +1,584 @@
 ---
-title: "Map of Denmark"
+title: "Rødbyhavn Tunnel Map"
 output: html_notebook
 ---
+Create a map of the Denmark and the Rødbyhavn tunnel using the *ggplot2* package together with *sf* package to add **simple features** to a graph as layers.
+
+### Load packages
+```{r message=FALSE, warning=FALSE}
+library(ggplot2) # Used for creating plots
+library(sf)      # Used in conjunction with ggplot to add layers to a plot.
+library(dplyr)   # Used to modify data in a data frame
+library(ggrepel) # Used to add labels to maps to avoid overlapping labels
+
+library(rnaturalearth)     # Used to get natural earth map data from https://www.naturalearthdata.com/
+library(rnaturalearthdata) # Used in conjunction with rnaturalearth
+library(readxl)            # Used for importing Excel worksheets
+library(lwgeom)            # Used for the st_split function
+library(osmdata)           # Used to get data from openstreetmap
+```
+
+### Create a Country Map
+```{r}
+country10 <- rnaturalearth::ne_countries(scale="large",country=c("Denmark","Germany","Sweden"))
+```
+
+```{r}
+Denmark_Map1 <- ggplot(data = country10)+
+  geom_sf()
+print(Denmark_Map1)
+```
+### Crop Map and Format
+
+```{r}
+Denmark_Map2 <- Denmark_Map1 +
+  geom_sf(fill="oldlace") +
+ # geom_sf(fill = "azuregray2", color = "azuregray3", linewidth = .2) +
+  # Crop the map using the latitude and longitude coordinates above
+  coord_sf(xlim = c(6.5, 14.2), 
+           ylim = c(53.5, 55.8), 
+           expand = TRUE) +
+  theme_classic()
+print(Denmark_Map2)
+```
+The map is a little too simplified for the scale of the map we need.
+
+```{r}
+lon_min <- 6.0 # xmin
+lon_max <- 13.7 # xmax
+lat_min <- 52.5 # ymin
+lat_max <- 56.8 # ymax
+
+coords <- matrix(c(lon_min,lon_max,lat_min,lat_max), byrow = TRUE, nrow = 2, ncol = 2, dimnames = list(c('x','y'),c('min','max'))) 
+coords
+```
+
+Get coastline from OpenStreetMap as an SF object using Osmdata.
+
+```{r}
+coast <- coords %>%
+  osmdata::opq() %>%
+  osmdata::add_osm_feature(key = "natural", value = "coastline") %>%
+  osmdata::osmdata_sf()
+
+```
+
+```{r}
+Denmark_Map3_Lines <- ggplot() +
+  geom_sf(
+    data = coast$osm_lines,
+    fill = "lightblue",
+    color = "steelblue",
+    linewidth = .03
+  ) + 
+  coord_sf(xlim = c(lon_min, lon_max), 
+           ylim = c(lat_min, lat_max),
+           expand = FALSE) +
+  theme_classic()
+print(Denmark_Map3_Lines)
+```
+```{r}
+Denmark_Map4_polygons <- ggplot() +
+  geom_sf(
+    data = coast$osm_polygons,
+    fill = "darkseagreen",
+    color = "steelblue",
+    linewidth = .03
+  ) + 
+  coord_sf(xlim = c(lon_min, lon_max), 
+           ylim = c(lat_min, lat_max),
+           expand = FALSE) +
+  theme_classic()
+print(Denmark_Map4_polygons)
+```
+Maps rendered with osm_lines can't be filled because they are not polygons. 
+Maps rendered with osm_polygons misses the main land. 
+So convert coast$osm_lines to polygons to lines to capture all of the mainland, islands and islets.
+
+Then create a rectangle based on the minimum and maximum latitude and longitude coordinates. 
+
+```{r}
+# Merge all of the osm_polygon objects in coast into osm_lines. The osm_polygons are retained but the are also repeated as osm_lines
+coast_all <- osm_poly2line(coast)
+
+dim(coast$osm_lines)
+dim(coast_all$osm_lines)
+
+```
+```{r}
+Denmark_Map4_Lines <- ggplot() +
+  geom_sf(
+    data = coast_all$osm_lines,
+    fill = "lightblue",
+    color = "steelblue",
+    linewidth = .03
+  ) + 
+  coord_sf(xlim = c(lon_min, lon_max), 
+           ylim = c(lat_min, lat_max),
+           expand = FALSE) +  
+  theme(axis.line = element_line(),
+       # axis.ticks = element_blank(),  # hides the Lat, Long tick lines
+       # axis.text.x = element_blank(), # hides the Longitude lines
+       # axis.text.y = element_blank(), # hides the Latitude lines
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
+        panel.background = element_rect(fill = "azure1"))
+print(Denmark_Map4_Lines)
+
+```
 
 
 ```{r}
-plot(cars)
+# Get overall rectangle for bbox
+bb_rect <- data.frame(
+  lat = c(lat_min, lat_max),
+  lon = c(lon_min, lon_max)) %>% 
+  st_as_sf(coords = c("lon", "lat"), crs = 4326) %>% 
+  st_bbox() %>% 
+  st_as_sfc()
+
+# Split the overall rectangle for bbox via coastline (coast_all$osm_lines)
+bb_rect_split <- bb_rect %>% 
+  st_split(coast_all$osm_lines) %>% 
+  st_collection_extract("POLYGON")
+
+# Extract the split rectangle parts
+land  <- bb_rect_split[1]
+sea <- bb_rect_split[2]
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+```{r}
+### Create Plots 
+# Creates a plot with the sea in light blue, outlined in steelblue. 
+# Land appears as antique white because of the panel.background setting.
+Denmark_Map5 <- ggplot() +
+  geom_sf(
+    data = bb_rect_split,
+    fill = "lightgreen",
+    color = "steelblue",
+    linewidth=.3
+  ) + 
+  coord_sf(xlim = c(lon_min, lon_max), 
+           ylim = c(lat_min, lat_max),
+           expand = FALSE) +  
+  theme(axis.line = element_line(),
+       # axis.ticks = element_blank(),  # hides the Lat, Long tick lines
+       # axis.text.x = element_blank(), # hides the Longitude lines
+       # axis.text.y = element_blank(), # hides the Latitude lines
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
+        panel.background = element_rect(fill = "white"))
+print(Denmark_Map5)
+```
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
 
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r}
+scale_factor = 10
+
+## Save as PNG file
+ggsave("Gifs/Denmark_Map5_%03d.png",
+       plot = last_plot(), 
+       device = "png",
+       scale = scale_factor,
+       units="mm", 
+       limitsize = FALSE,
+       dpi=300)
+```
+
+
+
+
+
+```{r}
+# Maps rendered with coast_TJ$osm_lines miss many small islands and islets.
+# Maps rendered with coast_TJ$osm_polygons misses the main land.
+# Convert coast_TJ$osm_polygons to lines to capture all islands and islets.
+coast_TJ2 <- osm_poly2line (coast_TJ)
+
+# 2. Get overall rectangle for bbox
+bb_rect_TJ <- data.frame(
+  lat = c(lat_min_TJ, lat_max_TJ),
+  lon = c(lon_min_TJ, lon_max_TJ)) %>% 
+  st_as_sf(coords = c("lon", "lat"), crs = 4326) %>% 
+  st_bbox() %>% 
+  st_as_sfc()
+
+# 3. Split the overall rectangle for bbox via coastline (coast2$osm_lines)
+bb_rect_split_TJ <- bb_rect_TJ %>% 
+  st_split(coast_TJ2$osm_lines) %>% 
+  st_collection_extract("POLYGON")
+
+# 4. Extract the split rectangle parts
+sea_TJ  <- bb_rect_split_TJ[1]
+land_TJ <- bb_rect_split_TJ[2]
+
+### Create Plots 
+# Creates a plot with the sea in light blue, outlined in steelblue. 
+# Land appears as antique white because of the panel.background setting.
+Tjorn_colour_1 <- ggplot() +
+  geom_sf(
+    data = sea_TJ,
+    fill = "lightblue",
+    color = "steelblue"
+  ) + 
+  coord_sf(xlim = c(lon_min_TJ, lon_max_TJ), 
+           ylim = c(lat_min_TJ, lat_max_TJ),
+           expand = FALSE) +  
+  theme(axis.line = element_line(),
+        axis.ticks = element_blank(),  # hides the Lat, Long tick lines
+        axis.text.x = element_blank(), # hides the Longitude lines
+        axis.text.y = element_blank(), # hides the Latitde lines
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
+        panel.background = element_rect(fill = "antiquewhite"))
+print(Tjorn_colour_1)
+
+scale_factor = 10
+
+## Save as PNG file
+ggsave("Gifs/Tjorn_colour_1_%03d.png",
+       plot = last_plot(), 
+       device = "png",
+       scale = scale_factor,
+       units="mm", 
+       limitsize = FALSE,
+       dpi=300)
+
+
+```
+
+
+
+
+
+
+### Create a Coastline Map
+Get coastline data from https://www.naturalearthdata.com/ using the *rnaturalearth* package. The result is a simple feature collection. 
+```{r message=FALSE, warning=FALSE}
+coastline10 <- rnaturalearth::ne_coastline(10)
+# Check the first 3 rows of coastline10
+head(coastline10,3)
+```
+Create an initial map **Map1** based on the coastline data. 
+
+```{r warning=FALSE, fig.width=1}
+Map1 <- ggplot(data = coastline10)+
+  geom_sf(linewidth = .2)
+print(Map1)
+```
+The result is a map of the coastline of the world.
+To set the map to the area we are interested in, first define the minimum and maximum latitude and longitude.
+
+```{r}
+# Define the Latitude and Longitudes of the Map
+lon_min_R <- 6.00 # xmin
+lon_max_R <- 14.00 # xmax
+lat_min_R <- 53.00 # ymin
+lat_max_R <- 58.00 # ymax
+
+```
+Then use the *coord_sf* function in ggplot to set limits for the map. To remove the grey background and the gridlines use the classic theme in ggplot2, *theme_classic*.
+
+```{r}
+Map2 <- ggplot(data = coastline10) +
+  geom_sf(fill = "lightblue", color = "steelblue", linewidth = .2) +
+  # Crop the map using the latitude and longitude coordinates above
+  coord_sf(xlim = c(lon_min_R, lon_max_R), 
+           ylim = c(lat_min_R, lat_max_R), 
+           expand = TRUE) +
+  theme_classic()
+print(Map2)
+```
+
+*Note:* The coastline renders only as a line because the coastline is not a polygon. The fill setting is ignored.
+
+
+```{r}
+```
+
+
+## Save as a GIF file
+The result must be printed in order to save the results as a GIF file. The actual size is quite small so the GIF needs to be scaled up. The GIF will have some differences to the plot displayed in the R Plots frame.
+
+```{r}
+scale_factor = 10
+
+ggsave("GIFs/Map2_basic_%03d.png",
+       plot = last_plot(),
+       device = "png",
+       scale = scale_factor,
+       units="mm",
+       limitsize = FALSE,
+       dpi=300)
+
+```
+
+## Convert the coastline into a polygon
+First create a rectangle for the bounding box based on the Latitude and Longitude variables above. Then split that rectangle via the coastline10$geometry setting and extract as a Polygon.
+Split the rectangle parts so [1] is sea and [2] is land.
+```{r}
+bb_rect_R <- data.frame(lat = c(lat_min_R, lat_max_R),
+                        lon = c(lon_min_R, lon_max_R)) %>% 
+  st_as_sf(coords = c("lon", "lat"), crs = 4326) %>% 
+  st_bbox() %>% 
+  st_as_sfc()
+
+bb_rect_R_split <- bb_rect_R %>% 
+  lwgeom::st_split(coastline10$geometry) %>%
+  sf::st_collection_extract("POLYGON")
+
+land_R  <- bb_rect_R_split[1]
+sea_R <- bb_rect_R_split[2]
+```
+
+```{r}
+Map3 <- ggplot(data = sea_R) +
+  geom_sf()
+print(Map3)
+```
+
+
+### Create Map
+Create a map that sets the sea as light blue, the land is outlined in steel blue and the lad is white.
+**geom_sf(fill)
+Displays sea as light blue, land outline as steel blue and land as white (taken from the panel.background fill). The lakes are filled in light blue.
+
+The code below takes the sea_R polygon, outlines it in steel blue and fills it in light blue.
+
+*ggplot(data = sea_R) +
+  geom_sf(fill = "azuregray2",
+          color = "azuregray3")*  
+Adds the lakes filled in light blue. 
+*geom_sf(data=lakes10, fill = "azuregray2")* 
+
+The following theme settings hide the tick lines, the longitude and latitude lines and the X and Y titles. Setting he panel.grid.major and minor to element_blank removes the gridlines. 
+The panel border is set to black outline with a line width of .3 in the panel.border settings.  
+Setting the panel.background setting to an white fill sets anywhere that is not sea to be white.
+*theme(axis.line = element_line(),
+        axis.ticks = element_blank(),  # hides the Lat, Long tick lines
+        axis.text.x = element_blank(), # hides the Longitude lines
+        axis.text.y = element_blank(), # hides the Latitude lines
+        axis.title = element_blank(),  # hides the X and Y titles
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth =.3),
+        panel.background = element_rect(fill = "white"))*
+
+```{r}
+Map4 <- ggplot(data = sea_R) +
+  geom_sf(fill = "azure2",
+          color = "azure3") +
+  geom_sf(data=lakes10, fill = "azure2", color = "azure3") +
+  coord_sf(xlim = c(lon_min_R, lon_max_R), 
+           ylim = c(lat_min_R, lat_max_R), 
+           expand = TRUE) +
+  theme(axis.line = element_line(),
+       # axis.ticks = element_blank(),  # hides the Lat, Long tick lines
+       # axis.text.x = element_blank(), # hides the Longitude lines
+       # axis.text.y = element_blank(), # hides the Latitude lines
+       # axis.title = element_blank(),  # hides the X and Y titles
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth =.3),
+        panel.background = element_rect(fill = "white"))
+```
+
+
+```{r echo=FALSE, fig.cap="Östersjön", fig.height=4}
+print(Map4)
+```
+
+```{r}
+ggsave("GIFs/Map2_Ostersjon_Map3_3%03d.png",
+       plot = last_plot(),
+       device = "png",
+       scale = scale_factor,
+       units="mm",
+       limitsize = FALSE,
+       dpi=300)
+```
+
+#### Add Lakes
+Download the lakes data from *rnaturalearth*. Set the scale to **10**, the largest scale.  Filter to display only top level lakes. 
+```{r message=FALSE, warning=FALSE}
+# Download lakes dataset and save as lakes10
+lakes10 <- rnaturalearth::ne_download(scale = 10, type = "lakes", 
+                                       category = "physical") #%>%
+            #dplyr::filter(scalerank < 8) 
+```
+#### Add Roads
+
+
+### Add Town, Sea and Country data 
+```{r}
+# Read in file containing towns, seas and countries
+Map_coordinates_R <- readxl::read_excel("Data/Map2_Balticmap_coordinates_v4.xlsx", 
+                                             sheet = "Sheet1", range = "A1:F47",
+                                             col_types = c("text", "text", "numeric", 
+                                                           "numeric", "text", "text")) %>%
+  # Correct some of the Town names
+  # Add a new column "Label" based on Ort. 
+  # Split some of the town names into 2 lines using \n
+  dplyr::mutate(Label = case_when(Ort == "Stettin" ~ "Stettin / Szczecin",
+                                  Ort == "Königsberg" ~ "Königsberg / Kaliningrad",
+                                  Ort == "Hela" ~ "Hela /\nHel",
+                                  Ort == "Danzig / Gdansk" ~ "Danzig /\nGdansk",
+                                  Ort == "Stolpmünde / Utska" ~ "Stolpmünde /\nUtska",
+                                  TRUE ~ Ort)) %>%
+  # Add a new column "Type" which is set to Country if the Ort column and Land column are the same
+  # Sea if the Ort column is "Kattegatt", "Östersjön", "Skagerrak", "Nordsjön" and otherwise set to City
+  dplyr::mutate(Type = case_when((Ort == Land) ~ "Country",
+                                 Ort %in% c("Kattegatt", "Östersjön", 
+                                            "Skagerrak", "Nordsjön") ~ "Sea",
+                                 TRUE ~ "City")) %>%
+  # Add a new column "Fontsize" which is set to 7 if Type is Country, 
+  # 4 if Ort is one of the capital cities and 3 if any other value
+  dplyr::mutate(FontSize = case_when(
+    Type == "Country" ~ 7,
+    Ort %in% c("Köpenhamn","Stockholm","Oslo") ~ 4,
+    TRUE ~ 3)) %>%
+  # Add a new column "FontFace" which is set to "bold.italic" if Type is Sea, 
+  # "bold" if Ort is one of the capital cities and "plain" if any other value
+  dplyr::mutate(FontFace = case_when((Type == "Sea") ~ "bold.italic",
+                                     Ort %in% c("Köpenhamn","Stockholm","Oslo") ~ "bold",
+                                     TRUE ~ "plain")) %>%
+  # Add a new column "FontColour" which is set to "azuregray3" if Type is Sea, 
+  # and "black" if any other value
+  dplyr::mutate(FontColour = case_when((Type == "Sea") ~ "azuregray3",
+                                       TRUE ~ "black")) %>%
+  # Add a new column NudgeX with values for nudging text labels left or right
+  dplyr::mutate(NudgeX = case_when(
+    Ort %in% c("Skagerrak") ~ .127,# moved right
+    Ort %in% c("Kristiansand") ~ -1,
+    Ort %in% c("Göteborg") ~ 1, # moved right
+    Ort %in% c("Stettin") ~ 1, # moved right
+    Ort %in% c("Königsberg") ~ 2, # moved right
+    Ort %in% c("Kragerø") ~ -.2, # moved left
+    Ort %in% c("Kiel","Lübeck") ~ -.6, # moved left
+    Ort %in% c("Tjörn") ~ -.5, # moved left
+    Ort %in% c("Åbo") ~ .2, # moved right
+    Ort %in% c("Helsingfors") ~ -.3, # moved left
+    Ort %in% c("Strömstad") ~ .52, # moved right
+    Ort %in% c("Memel / Klaipėda") ~ .9, # moved right
+    Ort %in% c("Königsberg") ~ .2, # moved right
+    TRUE ~ 0)) %>%
+  # Add a new column NudgeY with values for nudging text labels up or down
+  dplyr::mutate(NudgeY = case_when(
+    Ort %in% c("Oslo","Åbo","Helsingfors","Luleå", 
+               "Kemi", "Karlstad", "Stockholm") ~ .05, # moved above
+    Ort == "Skagerrak" ~ -.04, # moved below
+    Ort == "Kattegatt" ~ -.1,
+    Ort == "Kragerø" ~ .15,
+    Ort %in% c("Strömstad") ~ .2, # moved above
+    Ort %in% c("Hamburg", "Wismar") ~ -.1, # moved below
+    TRUE ~ 0))
+
+```
+
+```{r}
+Labels_R <- Map_coordinates_R %>%
+  sf::st_as_sf(coords = c("Long", "Lat"), crs = 4326, agr = "constant")
+
+Points_R <- dplyr::filter(Map_coordinates_R, !Mark == "area") %>%
+  sf::st_as_sf(coords = c("Long", "Lat"), crs = 4326, agr = "constant")
+
+```
+
+```{r}
+# Displays sea as light blue and points as dark red
+plotcoast <- ggplot(data = sea_R) +
+  geom_sf(fill = "azuregray2",
+          color = "azuregray3") +
+  geom_sf(data=lakes10, fill = "azuregray2") +
+  geom_sf(data = Points_R, size = 2, shape = 21, fill = "darkred") +
+  geom_sf_text(data = Labels_R, aes(label = Label, lineheight = .85), 
+               size = Labels_R$FontSize) +
+  coord_sf(xlim = c(lon_min_R +1.2, lon_max_R -.8), 
+           ylim = c(lat_min_R +.8, lat_max_R -.8), 
+           expand = TRUE) +
+  theme(axis.line = element_line(),
+        axis.ticks = element_blank(),  # hides the Lat, Long tick lines
+        axis.text.x = element_blank(), # hides the Longitude lines
+        axis.text.y = element_blank(), # hides the Latitude lines
+        axis.title = element_blank(),  # hides the X and Y titles
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth =.3),
+        panel.background = element_rect(fill = "white"))
+```
+
+```{r echo=FALSE, fig.cap="Östersjön", fig.width=15, warning=FALSE}
+print(plotcoast)
+
+```
+
+```{r}
+ggsave("GIFs/Map2_Ostersjon_coast_1_%03d.png",
+       plot = last_plot(), 
+       device = "png",
+       scale = scale_factor,
+       units="mm", 
+       limitsize = FALSE,
+       dpi=300)
+
+```
+
+### Fix overlapping labels
+Create a plot using *ggrepel* to ensure the text labels do not overlap. 
+Set the ggrepel.max.overlaps to infinity because there are many text labels.
+```{r}
+options(ggrepel.max.overlaps = Inf)
+
+```
+
+```{r}
+plotcoastLabels <- ggplot(data = sea_R) +
+  geom_sf(fill = "azuregray2",
+          color = "azuregray3") +
+  geom_sf(data=lakes10, fill = "azuregray2") +
+  geom_sf(data = Points_R, size = 2, shape = 21, fill = "darkred") +
+  geom_text_repel(data = Map_coordinates_R, 
+                  aes(label = Label, 
+                      x = Long, y = Lat,
+                      lineheight = .85), 
+                  size = Map_coordinates_R$FontSize, 
+                  fontface = Map_coordinates_R$FontFace,
+                  colour = Map_coordinates_R$FontColour,
+                  nudge_x = Map_coordinates_R$NudgeX,
+                  nudge_y = Map_coordinates_R$NudgeY) +
+  coord_sf(xlim = c(lon_min_R +1.2, lon_max_R -.8), 
+           ylim = c(lat_min_R +.8, lat_maxlat_min_R -.8), 
+           expand = TRUE) +
+  theme(axis.line = element_line(),
+        axis.ticks = element_blank(),  # hides the Lat, Long tick lines
+        axis.text.x = element_blank(), # hides the Longitude lines
+        axis.text.y = element_blank(), # hides the Latitde lines
+        axis.title = element_blank(),  # hides the X and Y titles
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth =.3),
+        panel.background = element_rect(fill = "white"))
+```
+
+```{r fig.width=20}
+print(plotcoastLabels)
+```
+
+
+```{r}
+# Save as GIF file
+ggsave("GIFs/Map2lat_min_Rstersjon_coast_withLabel_1_%03d.png",
+       plot = last_plot(), 
+       device = "png",
+       scale = scale_factor,
+       units="mm",
+       limitsize = FALSE,
+       dpi=300)
+
+```
+
+

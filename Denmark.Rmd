@@ -71,7 +71,7 @@ The map is a little too simplified for the scale of the map we need.
 lon_min <- 6.0 # xmin
 lon_max <- 13.7 # xmax
 lat_min <- 52.5 # ymin
-lat_max <- 56.8 # ymax
+lat_max <- 57.8 # ymax
 
 coords <- matrix(c(lon_min,lon_max,lat_min,lat_max), byrow = TRUE, nrow = 2, ncol = 2, dimnames = list(c('x','y'),c('min','max'))) 
 coords
@@ -162,15 +162,48 @@ bb_rect <- data.frame(
   st_bbox() %>% 
   st_as_sfc()
 
-# Split the overall rectangle for bbox via coastline (coast_all$osm_lines)
-bb_rect_split <- bb_rect %>% 
-  st_split(coast_all$osm_lines) %>% 
-  st_collection_extract("POLYGON")
+bb_rect_split <- bb_rect_R %>% 
+  lwgeom::st_split(coastline10$geometry) %>%
+  sf::st_collection_extract("POLYGON")
+```
 
+
+
+
+```{r}
+ggplot() +
+  geom_sf(
+    data = bb_rect_split[3],
+    fill = "lightgreen",
+    color = "steelblue",
+    linewidth=.3
+  ) + 
+  coord_sf(xlim = c(lon_min, lon_max), 
+           ylim = c(lat_min, lat_max),
+           expand = FALSE) +  
+  theme(axis.line = element_line(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
+        panel.background = element_rect(fill = "white"))
+```
+
+
+
+
+
+```{r}
+View(bb_rect_split)
+```
+
+
+```{r}
 # Extract the split rectangle parts
 land  <- bb_rect_split[1]
 sea <- bb_rect_split[2]
+a <- bb_rect_split[3]
 ```
+
 
 ```{r}
 ### Create Plots 
@@ -178,7 +211,7 @@ sea <- bb_rect_split[2]
 # Land appears as antique white because of the panel.background setting.
 Denmark_Map5 <- ggplot() +
   geom_sf(
-    data = land,
+    data = a,
     fill = "lightgreen",
     color = "steelblue",
     linewidth=.3

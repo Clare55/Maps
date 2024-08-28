@@ -1,0 +1,299 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(lwgeom)
+library(osmdata)
+library(sf)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+### define example bbox
+lon_min <- 6.5 # xmin
+lon_max <- 13 # xmax
+lat_min <- 53.5 # ymin
+lat_max <- 58.5 # ymax
+
+bb <- matrix(c(lon_min,lon_max,lat_min,lat_max), byrow = TRUE, nrow = 2, ncol = 2, dimnames = list(c('x','y'),c('min','max'))) 
+bb
+
+```
+
+```{r}
+### get "water" that is not sea as polygons
+# water <- opq(bb) %>%
+#   add_osm_feature(key = "natural", value = "water") %>%
+#   osmdata_sf()
+```
+
+
+```{r}
+### get sea & land as polygons
+# 1. get coastline (as line)
+coast <- opq(bb) %>%
+  add_osm_feature(key = "natural", value = "coastline") %>%
+  osmdata_sf()
+
+```
+
+```{r message=FALSE, warning=FALSE}
+polygon_Map <- ggplot() +
+  geom_sf(
+    data = coast$osm_polygons,
+    fill = "azure",
+    color = "steelblue"
+  ) +
+  coord_sf(xlim = c(lon_min, lon_max), 
+           ylim = c(lat_min, lat_max),
+           expand = FALSE) +
+    theme(axis.line = element_line(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
+        panel.background = element_rect(fill = "white"))
+
+print(polygon_Map)
+
+scale_factor = 10
+
+## Save as PNG file
+ggsave("Gifs/Map1_Polygons_%03d.png",
+       plot = last_plot(), 
+       device = "png",
+       scale = scale_factor,
+       units="mm", 
+       limitsize = FALSE,
+       dpi=300)
+```
+
+```{r message=FALSE, warning=FALSE}
+line_Map <- ggplot() +
+  geom_sf(
+    data = coast$osm_lines,
+    fill = "azure",
+    color = "steelblue",
+    linewidth=.3
+  ) + 
+  coord_sf(xlim = c(lon_min, lon_max), 
+           ylim = c(lat_min, lat_max),
+           expand = FALSE) +
+    theme(axis.line = element_line(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
+        panel.background = element_rect(fill = "white"))
+
+print(line_Map)
+
+scale_factor = 10
+
+## Save as PNG file
+ggsave("Gifs/Map1_Line_%03d.png",
+       plot = last_plot(), 
+       device = "png",
+       scale = scale_factor,
+       units="mm", 
+       limitsize = FALSE,
+       dpi=300)
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+line_and_polygon_Map <- ggplot() +
+    geom_sf(
+    data = coast$osm_polygons,
+    fill = "red",
+    color = "green"#,
+  #  linewidth=.3
+    ) +
+  geom_sf(
+    data = coast$osm_lines,
+    fill = "azure",
+    color = "steelblue",
+    linewidth=.3
+  ) + 
+  coord_sf(xlim = c(lon_min, lon_max), 
+           ylim = c(lat_min, lat_max),
+           expand = FALSE) +
+    theme(axis.line = element_line(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
+        panel.background = element_rect(fill = "white"))
+
+print(line_and_polygon_Map)
+
+scale_factor = 10
+
+## Save as PNG file
+ggsave("Gifs/Map1_Line_and_Polygon_%03d.png",
+       plot = last_plot(), 
+       device = "png",
+       scale = scale_factor,
+       units="mm", 
+       limitsize = FALSE,
+       dpi=300)
+
+```
+
+There are a small number of islets that are not included in the osm_lines. So merge all of the polygons (*osm_polygons*) into lines (*osm_lines*) with the function **osm_poly2line**.
+
+```{r}
+# Merge all of the osm_polygon objects in coast into osm_lines. The osm_polygons are retained but the are also repeated as osm_lines
+coast_all <- osm_poly2line(coast)
+
+dim(coast$osm_lines)
+dim(coast_all$osm_lines)
+```
+
+However to create a map with sea and land in colour we need to convert osm_lines into polygons. 
+This is done by creating a rectangle/polygon which is the size of the bounding box (bbox) and then spliting it via the coastline (**coast_all$osm_lines**). 
+```{r}
+# Get overall rectangle for bbox
+bb_rect <- data.frame(
+  lat = c(lat_min, lat_max),
+  lon = c(lon_min, lon_max)
+) %>% 
+  st_as_sf(coords = c("lon", "lat"), crs = 4326) %>% 
+  st_bbox() %>% 
+  st_as_sfc()
+
+```
+
+
+```{r}
+# Split overall rectangle for bbox via coastline
+bb_rect_split <- bb_rect %>% 
+  st_split(coast_all$osm_lines) %>% 
+  st_collection_extract("POLYGON")
+```
+
+```{r}
+# Extract the split parts
+sea <- bb_rect_split[1]
+```
+
+
+```{r message=FALSE, warning=FALSE}
+Map1 <- ggplot() +
+    geom_sf(
+    data = sea,
+    fill = "aliceblue",
+    color = "skyblue1", # outline
+    linewidth=.3
+    ) +
+  coord_sf(xlim = c(lon_min, lon_max), 
+           ylim = c(lat_min, lat_max),
+           expand = FALSE) +
+    theme(axis.line = element_line(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+       # axis.ticks = element_blank(),  # hides the Lat, Long tick lines
+       # axis.text.x = element_blank(), # hides the Longitude lines
+       # axis.text.y = element_blank(), # hides the Latitude lines
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
+        panel.background = element_rect(fill = "white"))
+
+print(Map1)
+
+scale_factor = 10
+
+## Save as PNG file
+ggsave("Gifs/Map1_%03d.png",
+       plot = last_plot(), 
+       device = "png",
+       scale = scale_factor,
+       units="mm", 
+       limitsize = FALSE,
+       dpi=300)
+
+```
+
+```{r}
+# Read in file containing towns, seas and countries
+Map_coordinates <- readxl::read_excel("Data/Map_coordinates.xlsx", 
+                           sheet = "Sheet1", range = "A1:D14",
+                           col_types = c("text", "numeric", "numeric", "text")) %>%
+    # Add a new column "Mark" which is set to Label if the Type is Sea or Country and otherwise set to Point
+  dplyr::mutate(Mark = case_when(Type %in% c("Sea", "Country") ~ "Label",
+                                 TRUE ~ "Point")) %>%
+  # Add a new column "Fontsize" which is set to 4 if Type is Country, 
+  # 3 if Sea and 2.5 if any other value
+  dplyr::mutate(FontSize = case_when(
+    Type == "Country" ~ 4,
+    Type == "Sea" ~ 3,
+    TRUE ~ 2.5))  %>%
+    # Add a new column "NudgeX" which is set to 0 
+  dplyr::mutate(NudgeX = case_when(
+    Type == "Country" ~ 0,
+    Type == "Sea" ~ 0,
+    TRUE ~ 0)) %>%
+    # Add a new column "NudgeX" which is set to 0 
+  dplyr::mutate(NudgeY = case_when(
+    Type == "Country" ~ 0,
+    Type == "Sea" ~ 0,
+    TRUE ~ .1))
+
+  
+head(Map_coordinates,3)
+```
+
+```{r}
+Labels <- Map_coordinates %>%
+  sf::st_as_sf(coords = c("Long", "Lat"), crs = 4326, agr = "constant")
+
+Points <- dplyr::filter(Map_coordinates, !Mark == "Label") %>%
+  sf::st_as_sf(coords = c("Long", "Lat"), crs = 4326, agr = "constant")
+
+```
+
+
+
+```{r message=FALSE, warning=FALSE}
+Map2 <- ggplot() +
+    geom_sf(
+    data = sea,
+    fill = "aliceblue",
+    color = "skyblue1", # outline
+    linewidth=.2
+    ) +
+    geom_sf(data = Points, size = 1, shape = 21, fill = "darkred") +
+    geom_sf_text(data = Labels, aes(label = Label, lineheight = .85), 
+               size = Labels$FontSize,
+               colour = "darkgray",
+               nudge_x = Labels$NudgeX,
+               nudge_y = Labels$NudgeY) +
+  coord_sf(xlim = c(lon_min, lon_max), 
+           ylim = c(lat_min, lat_max-2.5),
+           expand = FALSE) +
+    theme(axis.line = element_line(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+       # axis.ticks = element_blank(),  # hides the Lat, Long tick lines
+       # axis.text.x = element_blank(), # hides the Longitude lines
+       # axis.text.y = element_blank(), # hides the Latitude lines
+        axis.title =element_blank(),  # hides the X and y axis labels
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
+        panel.background = element_rect(fill = "white"))
+
+print(Map2)
+```
+```{r}
+scale_factor = 10
+
+## Save as PNG file
+ggsave("Gifs/Map2_%03d.png",
+       plot = last_plot(), 
+       device = "png",
+       scale = scale_factor,
+       units="mm", 
+       limitsize = FALSE,
+       dpi=300)
+```
+

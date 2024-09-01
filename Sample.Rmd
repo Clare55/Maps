@@ -218,27 +218,39 @@ ggsave("Gifs/Map1_%03d.png",
 ```{r}
 # Read in file containing towns, seas and countries
 Map_coordinates <- readxl::read_excel("Data/Map_coordinates.xlsx", 
-                           sheet = "Sheet1", range = "A1:D14",
+                           sheet = "Sheet1", range = "A1:D18",
                            col_types = c("text", "numeric", "numeric", "text")) %>%
     # Add a new column "Mark" which is set to Label if the Type is Sea or Country and otherwise set to Point
-  dplyr::mutate(Mark = case_when(Type %in% c("Sea", "Country") ~ "Label",
+  dplyr::mutate(Mark = case_when(Type %in% c("Sea", "Country", "Area") ~ "Label",
                                  TRUE ~ "Point")) %>%
   # Add a new column "Fontsize" which is set to 4 if Type is Country, 
   # 3 if Sea and 2.5 if any other value
   dplyr::mutate(FontSize = case_when(
     Type == "Country" ~ 4,
     Type == "Sea" ~ 3,
-    TRUE ~ 2.5))  %>%
+    TRUE ~ 3))  %>%
+  dplyr::mutate(FontType = case_when(
+    Type == "Country" ~ "bold",
+    Type == "Sea" ~ "bold.italic",
+    Type == "Area" ~ "italic",
+    TRUE ~ "plain"))  %>%
+  dplyr::mutate(FontColour = case_when(
+    Type == "Country" ~ "black",
+    Label %in% c("Puttgarden","Rødbyhavn") ~ "black",
+    Type == "Sea" ~ "steelblue",
+    TRUE ~ "darkgray"))  %>%
     # Add a new column "NudgeX" which is set to 0 
   dplyr::mutate(NudgeX = case_when(
+    Label %in% c("Puttgarden","Rødbyhavn") ~ -.33,
     Type == "Country" ~ 0,
     Type == "Sea" ~ 0,
     TRUE ~ 0)) %>%
     # Add a new column "NudgeX" which is set to 0 
   dplyr::mutate(NudgeY = case_when(
+    Label %in% c("Puttgarden","Rødbyhavn") ~ 0,
     Type == "Country" ~ 0,
     Type == "Sea" ~ 0,
-    TRUE ~ .1))
+    TRUE ~ -.05))
 
   
 head(Map_coordinates,3)
@@ -266,7 +278,8 @@ Map2 <- ggplot() +
     geom_sf(data = Points, size = 1, shape = 21, fill = "darkred") +
     geom_sf_text(data = Labels, aes(label = Label, lineheight = .85), 
                size = Labels$FontSize,
-               colour = "darkgray",
+               colour = Labels$FontColour,
+               fontface = Labels$FontType,
                nudge_x = Labels$NudgeX,
                nudge_y = Labels$NudgeY) +
   coord_sf(xlim = c(lon_min, lon_max), 
@@ -295,5 +308,219 @@ ggsave("Gifs/Map2_%03d.png",
        units="mm", 
        limitsize = FALSE,
        dpi=300)
+```
+```{r}
+roads <- opq(bb) %>%
+  add_osm_feature(key = "highway", value = c("motorway", "motorway_link")) %>%
+  osmdata_sf()
+```
+
+```{r}
+roads2 <- opq(bb) %>%
+  add_osm_feature(key = "highway", value = c("primary", "primary_link")) %>%
+  osmdata_sf()
+```
+
+
+
+```{r}
+library(tidyr)
+```
+
+```{r message=FALSE, warning=FALSE}
+toproads <- roads$osm_lines %>%
+    dplyr::select(name, osm_id) %>%
+   # as.data.frame() %>%
+    group_by(name) %>%
+    tidyr::drop_na() %>%
+    summarise(n = n()) %>%
+    arrange(desc(n)) %>%
+    head(20)
+toproads
+```
+```{r message=FALSE, warning=FALSE}
+Map2 +
+geom_sf(data = toproads, size = .05, aes(colour = name))
+```
+
+```{r}
+## Save as PNG file
+ggsave("Gifs/Map_roads_%03d.png",
+       plot = last_plot(), 
+       device = "png",
+       scale = scale_factor,
+       units="mm", 
+       limitsize = FALSE,
+       dpi=300)
+```
+
+
+```{r}
+NordjyskeMotorvej <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Nordjyske Motorvej"))
+
+SønderjyskeMotorvej <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Sønderjyske Motorvej"))
+
+FynskeMotorvej<- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Fynske Motorvej"))
+
+Holbækmotorvejen <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Holbækmotorvejen"))
+
+ØstjyskeMotorvej <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Østjyske Motorvej"))
+
+Vestmotorvejen <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Vestmotorvejen"))
+
+Norgevägen <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Norgevägen"))
+
+Boråsleden <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Boråsleden"))
+
+MidtjyskeMotorvej <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Midtjyske Motorvej"))
+
+Helsingørmotorvejen <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Helsingørmotorvejen"))
+
+Hirtshalsmotorvejen <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Hirtshalsmotorvejen"))
+
+Lundbyleden <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Lundbyleden"))
+
+Sydmotorvejen <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Sydmotorvejen"))
+
+Motorring3 <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Motorring 3"))
+  
+KøgeBugt <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Køge Bugt Motorvejen"))
+
+Amagermotorvejen <-roads[["osm_lines"]] %>% 
+  filter(name %in% c("Amagermotorvejen"))
+  
+Øresundsmotorvejen <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Øresundsmotorvejen"))
+
+Trollhätteleden <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Trollhätteleden"))
+
+
+
+```
+```{r}
+#Øresund Bridge
+bridges <- opq(bb) %>%
+  add_osm_feature(key = "man_made", value = c("bridge")) %>%
+  osmdata_sf()
+
+```
+
+```{r}
+route <- roads[["osm_lines"]] %>% 
+  filter(name %in% c("Sydmotorvejen", "Amagermotorvejen",
+                     "Øresundsmotorvejen","Køge Bugt Motorvejen"))
+```
+```{r}
+Fehmarnbelt <- data.frame(pair = c("Fehmarnbelt","Fehmarnbelt"),
+                    town = c("Puttgarden", "Rødbyhavn"),
+                    lat = c(54.49676, 54.66587),
+                    lon = c(11.211643, 11.344733))
+
+
+Fehmarnbelt
+```
+
+
+
+```{r message=FALSE, warning=FALSE}
+Map3 <- ggplot() +
+    geom_sf(
+    data = sea,
+    fill = "aliceblue",
+    color = "skyblue1", # outline
+    linewidth=.2
+    ) +
+    geom_sf(data = roads$osm_lines, size = .05, colour = "lightgray") +
+    geom_sf(data = primary_streets$osm_lines, size = .01, colour = "gray90") +
+    geom_sf(data = Points, size = 1, shape = 21, fill = "darkred") +
+    geom_sf_text(data = Labels, aes(label = Label, lineheight = .85), 
+               size = Labels$FontSize,
+               colour = Labels$FontColour,
+               fontface = Labels$FontType,
+               nudge_x = Labels$NudgeX,
+               nudge_y = Labels$NudgeY) +
+    geom_line(data = Fehmarnbelt, 
+            colour = "darkred", size = .5,
+            linetype=2,
+            aes(x = lon, y = lat, group = pair))+
+      geom_sf(data=route, colour = "navy", size = 1) +
+#  geom_sf(data=Lundbyleden, colour = "green", size = 1) +
+#   geom_sf(data = MidtjyskeMotorvej, colour = "green", size = 1) +
+#     geom_sf(data = Hirtshalsmotorvejen, colour = "purple", size = 1) +
+#   geom_sf(data = Boråsleden, colour = "green", size = 1) +
+#   geom_sf(data = Norgevägen, colour = "green", size = 1) +
+#      geom_sf(data = Helsingørmotorvejen, colour = "navy", size = 1) +
+#      geom_sf(data = Motorring3, colour = "purple", size = 1) +
+#      geom_sf(data = Vestmotorvejen, colour = "green", size = 1) +
+      #geom_sf(data = FynskeMotorvej, colour = "green", size = 1) +
+  #Trollhätteleden
+       # geom_sf(data = Trollhätteleden, colour = "green", size = 1) +
+  #NordjyskeMotorvej
+       # geom_sf(data = NordjyskeMotorvej, colour = "green", size = 1) +
+  #Holbækmotorvejen
+       # geom_sf(data = Holbækmotorvejen, colour = "green", size = 1) +
+    #geom_sf(data = ØstjyskeMotorvej, colour = "green", size = 1) +
+    #  geom_sf(data = SønderjyskeMotorvej, colour = "green", size = 1) +
+  coord_sf(xlim = c(lon_min, lon_max), 
+           ylim = c(lat_min, lat_max-2.5),
+           expand = FALSE) +
+    theme(axis.line = element_line(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+       # axis.ticks = element_blank(),  # hides the Lat, Long tick lines
+       # axis.text.x = element_blank(), # hides the Longitude lines
+       # axis.text.y = element_blank(), # hides the Latitude lines
+        axis.title =element_blank(),  # hides the X and y axis labels
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
+        panel.background = element_rect(fill = "white"))
+
+print(Map3)
+```
+
+
+
+
+
+
+```{r message=FALSE, warning=FALSE}
+Map4 <- Map3 +
+  geom_line(data = Fehmarnbelt, 
+            colour = "darkred", size = .5,
+            linetype=2,
+            aes(x = lon, y = lat, group = pair))
+
+print(Map4)
+```
+
+
+
+```{r}
+scale_factor = 10
+
+## Save as PNG file
+ggsave("Gifs/Map3_%03d.png",
+       plot = last_plot(), 
+       device = "png",
+       scale = scale_factor,
+       units="mm", 
+       limitsize = FALSE,
+       dpi=300)
+
 ```
 

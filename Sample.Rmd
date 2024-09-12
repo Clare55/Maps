@@ -3,13 +3,14 @@ title: "R Notebook"
 output: html_notebook
 ---
 
-
-```{r}
-library(lwgeom)
+```{r Libraries, message=FALSE, warning=FALSE}
 library(osmdata)
 library(sf)
 library(dplyr)
 library(ggplot2)
+library(lwgeom)
+library(tidyr)
+library(stringr)
 ```
 
 ```{r}
@@ -194,9 +195,6 @@ Map1 <- ggplot() +
     theme(axis.line = element_line(),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
-       # axis.ticks = element_blank(),  # hides the Lat, Long tick lines
-       # axis.text.x = element_blank(), # hides the Longitude lines
-       # axis.text.y = element_blank(), # hides the Latitude lines
         panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
         panel.background = element_rect(fill = "white"))
 
@@ -239,9 +237,12 @@ Map_coordinates <- readxl::read_excel("Data/Map_coordinates.xlsx",
     Label %in% c("Puttgarden","Rødbyhavn") ~ "black",
     Type == "Sea" ~ "steelblue",
     TRUE ~ "darkgray"))  %>%
+    dplyr::mutate(PointSize = case_when(
+    Label %in% c("Puttgarden","Rødbyhavn") ~ 1.5,
+    TRUE ~ 1))  %>%
     # Add a new column "NudgeX" which is set to 0 
   dplyr::mutate(NudgeX = case_when(
-    Label %in% c("Puttgarden","Rødbyhavn") ~ -.33,
+    Label %in% c("Puttgarden","Rødbyhavn") ~ -.36,
     Type == "Country" ~ 0,
     Type == "Sea" ~ 0,
     TRUE ~ 0)) %>%
@@ -275,7 +276,7 @@ Map2 <- ggplot() +
     color = "skyblue1", # outline
     linewidth=.2
     ) +
-    geom_sf(data = Points, size = 1, shape = 21, fill = "darkred") +
+    geom_sf(data = Points, size = Points$PointSize, shape = 21, fill = "darkred") +
     geom_sf_text(data = Labels, aes(label = Label, lineheight = .85), 
                size = Labels$FontSize,
                colour = Labels$FontColour,
@@ -288,9 +289,6 @@ Map2 <- ggplot() +
     theme(axis.line = element_line(),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
-       # axis.ticks = element_blank(),  # hides the Lat, Long tick lines
-       # axis.text.x = element_blank(), # hides the Longitude lines
-       # axis.text.y = element_blank(), # hides the Latitude lines
         axis.title =element_blank(),  # hides the X and y axis labels
         panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
         panel.background = element_rect(fill = "white"))
@@ -316,26 +314,32 @@ roads <- opq(bb) %>%
 ```
 
 ```{r}
-roads2 <- opq(bb) %>%
-  add_osm_feature(key = "highway", value = c("primary", "primary_link")) %>%
+roadsConstruction <- opq(bb) %>%
+  add_osm_feature(key = "highway", value = c("construction")) %>%
   osmdata_sf()
+
 ```
-
-
 
 ```{r}
-library(tidyr)
+examine <- roadsConstruction$osm_lines %>%
+  dplyr::select(!c(starts_with(c("FIXME","abutters","access","adfc","area","bdouble","bicycle","bridge:", "building", "bus","class","change", "check_date:","cycleway",
+                                 
+#                    "communication","construction:","covered","cutting","d#estination:","disused", "ele","embankment","emergency","foot","hazard","hazmat","HGV","horse","lane#s","fixme", "int_ref:","junction", "lane","layer","level","max","min","operator:type", #"operator:w","height","incline","lit","description:","motor","mofa","name:","ref:","service","shoul#der","seamark","sidewalk","psv","overtaking","parking","loc","mapi","nat","oneway","placement","pla#nned","preserved", "priority","smoothness","start_","surface","survey","taxi","toll","traffic","tro#lley","tunnel:alt","tunnel:name:","turn:",
+                    "surface","tactile","toilets","tracktype","url","vehicle","wheel","width"))))
+ 
+ View(examine)
+
 ```
+
 
 ```{r message=FALSE, warning=FALSE}
 toproads <- roads$osm_lines %>%
     dplyr::select(name, osm_id) %>%
-   # as.data.frame() %>%
     group_by(name) %>%
     tidyr::drop_na() %>%
     summarise(n = n()) %>%
     arrange(desc(n)) %>%
-    head(20)
+    head(30)
 toproads
 ```
 ```{r message=FALSE, warning=FALSE}
@@ -353,66 +357,34 @@ ggsave("Gifs/Map_roads_%03d.png",
        limitsize = FALSE,
        dpi=300)
 ```
+```{r}
+topprimaryroads <- roads$osm_lines %>%
+    dplyr::select(int_ref, ref, official_ref, name, osm_id) %>%
+    dplyr::filter(!int_ref %in% c("E 04", "E 45", "E 39", "E 04;E 06;E 20", "E 55", "E 06;E 20", "E 20", "E 06", "E 26", "E 234")) %>%
+    group_by(int_ref, ref, official_ref, name) %>%
+    tidyr::drop_na() %>%
+    summarise(n = n()) %>%
+    arrange(desc(n)) %>%
+    head(40)
+topprimaryroads
+```
+
+
 
 
 ```{r}
-NordjyskeMotorvej <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Nordjyske Motorvej"))
-
-SønderjyskeMotorvej <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Sønderjyske Motorvej"))
-
-FynskeMotorvej<- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Fynske Motorvej"))
-
-Holbækmotorvejen <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Holbækmotorvejen"))
-
-ØstjyskeMotorvej <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Østjyske Motorvej"))
-
-Vestmotorvejen <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Vestmotorvejen"))
-
-Norgevägen <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Norgevägen"))
-
-Boråsleden <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Boråsleden"))
-
-MidtjyskeMotorvej <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Midtjyske Motorvej"))
-
-Helsingørmotorvejen <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Helsingørmotorvejen"))
-
-Hirtshalsmotorvejen <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Hirtshalsmotorvejen"))
-
-Lundbyleden <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Lundbyleden"))
-
-Sydmotorvejen <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Sydmotorvejen"))
-
-Motorring3 <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Motorring 3"))
-  
-KøgeBugt <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Køge Bugt Motorvejen"))
-
-Amagermotorvejen <-roads[["osm_lines"]] %>% 
-  filter(name %in% c("Amagermotorvejen"))
-  
-Øresundsmotorvejen <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Øresundsmotorvejen"))
-
-Trollhätteleden <- roads[["osm_lines"]] %>% 
-  filter(name %in% c("Trollhätteleden"))
+Map2 +
+geom_sf(data = topprimaryroads, size = .05, aes(colour = ref))
+```
 
 
+```{r message=FALSE, warning=FALSE}
+Map2 +
+geom_sf(data = topprimaryroads, size = .05, aes(colour = int_ref))
 
 ```
+
+
 ```{r}
 #Øresund Bridge
 bridges <- opq(bb) %>%
@@ -422,10 +394,43 @@ bridges <- opq(bb) %>%
 ```
 
 ```{r}
+routeA <- roads[["osm_lines"]] %>% 
+  filter(int_ref %in% c("E 20;E 47;E 55", "E 47", "E 47;E 55", "E 22")) %>%
+  filter(!ref == "A 20") 
+```
+
+```{r}
 route <- roads[["osm_lines"]] %>% 
   filter(name %in% c("Sydmotorvejen", "Amagermotorvejen",
-                     "Øresundsmotorvejen","Køge Bugt Motorvejen"))
+                     "Øresundsmotorvejen","Køge Bugt Motorvejen", "Tunnel Billwerder-Moorfleet")|
+           int_ref == "E 22")
 ```
+
+
+
+```{r}
+route_Constructed <- roadsConstruction[["osm_lines"]] %>% 
+  filter(name %in% c("Sydmotorvejen", "Amagermotorvejen",
+                     "Øresundsmotorvejen","Køge Bugt Motorvejen", "Tunnel Billwerder-Moorfleet")|
+           int_ref == "E 47")
+```
+
+```{r}
+b <- route_Constructed %>%
+    dplyr::select(osm_id, bridge, construction, int_ref,opening_date, ref, tunnel, `tunnel:name`, geometry)
+View(b)
+```
+
+```{r}
+route_Constructed_T <- roadsConstruction[["osm_lines"]] %>% 
+  filter(name %in% c("Sydmotorvejen", "Amagermotorvejen",
+                     "Øresundsmotorvejen","Køge Bugt Motorvejen", "Tunnel Billwerder-Moorfleet")|
+           int_ref == "E 47") %>%
+  filter(tunnel== "yes")
+```
+
+
+
 ```{r}
 Fehmarnbelt <- data.frame(pair = c("Fehmarnbelt","Fehmarnbelt"),
                     town = c("Puttgarden", "Rødbyhavn"),
@@ -448,35 +453,19 @@ Map3 <- ggplot() +
     ) +
     geom_sf(data = roads$osm_lines, size = .05, colour = "lightgray") +
     geom_sf(data = primary_streets$osm_lines, size = .01, colour = "gray90") +
-    geom_sf(data = Points, size = 1, shape = 21, fill = "darkred") +
+    geom_sf(data = Points, size = Points$PointSize,, shape = 21, fill = "darkred") +
     geom_sf_text(data = Labels, aes(label = Label, lineheight = .85), 
                size = Labels$FontSize,
                colour = Labels$FontColour,
                fontface = Labels$FontType,
                nudge_x = Labels$NudgeX,
                nudge_y = Labels$NudgeY) +
-    geom_line(data = Fehmarnbelt, 
-            colour = "darkred", size = .5,
-            linetype=2,
-            aes(x = lon, y = lat, group = pair))+
       geom_sf(data=route, colour = "navy", size = 1) +
-#  geom_sf(data=Lundbyleden, colour = "green", size = 1) +
-#   geom_sf(data = MidtjyskeMotorvej, colour = "green", size = 1) +
-#     geom_sf(data = Hirtshalsmotorvejen, colour = "purple", size = 1) +
-#   geom_sf(data = Boråsleden, colour = "green", size = 1) +
-#   geom_sf(data = Norgevägen, colour = "green", size = 1) +
-#      geom_sf(data = Helsingørmotorvejen, colour = "navy", size = 1) +
-#      geom_sf(data = Motorring3, colour = "purple", size = 1) +
-#      geom_sf(data = Vestmotorvejen, colour = "green", size = 1) +
-      #geom_sf(data = FynskeMotorvej, colour = "green", size = 1) +
-  #Trollhätteleden
-       # geom_sf(data = Trollhätteleden, colour = "green", size = 1) +
-  #NordjyskeMotorvej
-       # geom_sf(data = NordjyskeMotorvej, colour = "green", size = 1) +
-  #Holbækmotorvejen
-       # geom_sf(data = Holbækmotorvejen, colour = "green", size = 1) +
-    #geom_sf(data = ØstjyskeMotorvej, colour = "green", size = 1) +
-    #  geom_sf(data = SønderjyskeMotorvej, colour = "green", size = 1) +
+      geom_sf(data=route_Constructed_T, colour = "darkred", size = .5, linetype="dotted") +
+     # geom_line(data = Fehmarnbelt, 
+     #       colour = "darkred", size = .5,
+     #       linetype=2,
+     #       aes(x = lon, y = lat, group = pair))+
   coord_sf(xlim = c(lon_min, lon_max), 
            ylim = c(lat_min, lat_max-2.5),
            expand = FALSE) +
@@ -496,31 +485,82 @@ print(Map3)
 
 
 
+```{r}
+Map3a <- ggplot() +
+    geom_sf(
+    data = sea,
+    fill = "aliceblue",
+    color = "skyblue1", # outline
+    linewidth=.2
+    ) +
+    geom_sf(data = roads$osm_lines, size = .05, colour = "lightgray") +
+    geom_sf(data = primary_streets$osm_lines, size = .01, colour = "gray90") +
+    geom_sf(data = Points, size = Points$PointSize,, shape = 21, fill = "darkred") +
+    geom_sf_text(data = Labels, aes(label = Label, lineheight = .85), 
+               size = Labels$FontSize,
+               colour = Labels$FontColour,
+               fontface = Labels$FontType,
+               nudge_x = Labels$NudgeX,
+               nudge_y = Labels$NudgeY) +
+      geom_sf(data=routeA, colour = "navy", size = 1) +
+      geom_sf(data=filter(route_Constructed, !tunnel %in% "yes" | !construction %in% "motorway"), colour = "darkgrey", size = 2, linetype="solid") +
+        geom_sf(data=filter(route_Constructed, tunnel== "yes" & construction=="motorway"), colour = "darkred", size = .5, linetype="dotted") +
+     # geom_line(data = Fehmarnbelt, 
+     #       colour = "darkred", size = .5,
+     #       linetype=2,
+     #       aes(x = lon, y = lat, group = pair))+
+  coord_sf(xlim = c(lon_min, lon_max), 
+           ylim = c(lat_min, lat_max-2.5),
+           expand = FALSE) +
+    theme(axis.line = element_line(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+       # axis.ticks = element_blank(),  # hides the Lat, Long tick lines
+       # axis.text.x = element_blank(), # hides the Longitude lines
+       # axis.text.y = element_blank(), # hides the Latitude lines
+        axis.title =element_blank(),  # hides the X and y axis labels
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=.3),
+        panel.background = element_rect(fill = "white"))
 
+print(Map3a)
 
-```{r message=FALSE, warning=FALSE}
-Map4 <- Map3 +
-  geom_line(data = Fehmarnbelt, 
-            colour = "darkred", size = .5,
-            linetype=2,
-            aes(x = lon, y = lat, group = pair))
-
-print(Map4)
 ```
-
 
 
 ```{r}
 scale_factor = 10
 
 ## Save as PNG file
-ggsave("Gifs/Map3_%03d.png",
+ggsave("Gifs/Map3a_%03d.png",
        plot = last_plot(), 
        device = "png",
        scale = scale_factor,
        units="mm", 
        limitsize = FALSE,
        dpi=300)
+
+```
+```{r}
+examine <- roads$osm_lines %>%
+  dplyr::select(!c(FIXME, `abandoned:highway`,  starts_with(c("access","aeroway","bridge:","bus","change", "check_date:","communication","construction:","covered","cutting","cycleway","destination:","disused", "ele","embankment","emergency","foot","hazard","hazmat","HGV","horse","lanes","fixme", "int_ref:","junction", "lane","layer","level","max","min","operator:type", "operator:w","height","incline","lit","description:","motor","mofa","name:","ref:","service","shoulder","seamark","sidewalk","psv","overtaking","parking","loc","mapi","nat","oneway","placement","planned","preserved", "priority","smoothness","start_","surface","survey","taxi","toll","traffic","trolley","tunnel:alt","tunnel:name:","turn:","source:max","urban","vehicle","osm")),  agricultural, bdouble, bicycle))
+View(examine)
+glimpse(examine)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+toproadsByRef <- roads$osm_lines %>%
+    dplyr::select(ref, int_ref, name, destination, osm_id) %>%
+    group_by(ref,int_ref, name, destination) %>%
+    tidyr::drop_na() %>%
+    summarise(n = n()) %>%
+    arrange(desc(n)) %>%
+    head(40)
+toproadsByRef
+```
+```{r message=FALSE, warning=FALSE}
+Map2 +
+geom_sf(data = toproadsByRef, size = .05, aes(colour = ref))
 
 ```
 
